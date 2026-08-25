@@ -1,0 +1,29 @@
+{
+  "name": "leaflet-detail-view",
+  "version": "0.1.0",
+  "description": "Leaflet plugin: draw a box to open a zoomable inset detail map connected by a leader line.",
+  "main": "src/leaflet-detail-view.js",
+  "style": "src/leaflet-detail-view.css",
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "start": "npx --yes serve .",
+    "lint": "eslint src test",
+    "test": "node --test test/"
+  },
+  "keywords": [
+    "leaflet",
+    "leaflet-plugin",
+    "map",
+    "inset",
+    "detail"
+  ],
+  "peerDependencies": {
+    "leaflet": "^1.9.0"
+  },
+  "devDependencies": {
+    "eslint": "^9.0.0"
+  },
+  "license": "MIT"
+}

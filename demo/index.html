@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Leaflet.DetailView demo</title>
+	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+	<link rel="stylesheet" href="../src/leaflet-detail-view.css">
+	<style>
+		html, body { height: 100%; margin: 0; }
+		#map { height: 100%; }
+		.hint {
+			position: absolute;
+			bottom: 12px;
+			left: 50%;
+			transform: translateX(-50%);
+			z-index: 1000;
+			padding: 6px 12px;
+			border-radius: 4px;
+			background: rgba(0, 0, 0, 0.7);
+			color: #fff;
+			font: 12px/1.5 system-ui, sans-serif;
+		}
+	</style>
+</head>
+<body>
+	<div id="map"></div>
+	<div class="hint">
+		Click the &#9646; button, then drag a box on the map. Drag the panel header to move it,
+		any edge or corner to resize, and &#177; to toggle the inset zoom control.
+	</div>
+
+	<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+	<script src="../src/leaflet-detail-view.js"></script>
+	<script>
+		var map = L.map('map').setView([51.505, -0.09], 13);
+
+		L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+			maxZoom: 19,
+			attribution: '&copy; OpenStreetMap contributors'
+		}).addTo(map);
+
+		var detailControl = L.control.detailView({
+			detailViewOptions: {
+				width: 340,
+				height: 260,
+				title: 'Detail view'
+			}
+		}).addTo(map);
+
+		map.on('detailview:create', function (e) {
+			console.log('detail view created', e.detailView.getBounds());
+		});
+	</script>
+</body>
+</html>
