@@ -69,13 +69,18 @@ view.toggleZoomControl(false);
 | `view` | `null` | Restore inset view: `{ center, zoom }` |
 | `detailMapOptions` | `{ attributionControl: false }` | Options for the inset `L.Map`. `crs`, `minZoom`, `maxZoom`, `maxBounds` and `preferCanvas` are inherited from the parent map unless overridden |
 | `createLayers` | `null` | `function(parentMap)` returning layers for the inset map. Defaults to cloning the parent's layers |
+| `syncLayers` | `true` | Mirror layers added to / removed from the parent map while the view is open |
 | `onDetailMap` | `null` | `function(detailMap, detailView)` called once the inset map exists — attach your own controls and handlers here |
 
 ## Layers in the inset
 
-By default the plugin clones the parent map's layers: tile layers, WMS layers, image
-overlays and anything with `toGeoJSON()`. Non-default panes are recreated on the inset so
-layers keep their stacking order.
+By default the plugin clones the parent map's layers: tile and WMS layers, image overlays,
+markers, circles, polylines/polygons, and anything else with `toGeoJSON()`. Non-default
+panes are recreated on the inset so layers keep their stacking order.
+
+With `syncLayers` (on by default) layers added to or removed from the parent map after the
+view is open are mirrored automatically. Clones are snapshots, so if you mutate a layer in
+place (`setLatLngs`, `setStyle`, ...) call `view.refreshLayers()` to rebuild them.
 
 For app-specific layer classes (Esri Leaflet, vector tiles, ...) either register a cloner:
 
@@ -107,6 +112,24 @@ L.control.detailView({
 		onDetailMap: (detailMap) => {
 			L.control.scale().addTo(detailMap);
 			detailMap.on('click', onMapClick);
+		}
+	}
+}).addTo(map);
+```
+
+For markup/draw tools, target the inset map but keep storing features on the **parent**
+map — `syncLayers` then mirrors them straight back into the inset, and the markup survives
+closing the panel:
+
+```js
+const drawnItems = new L.FeatureGroup().addTo(map);
+
+L.control.detailView({
+	detailViewOptions: {
+		onDetailMap: (detailMap) => {
+			const draw = new L.Control.Draw({ edit: { featureGroup: drawnItems } });
+			detailMap.addControl(draw);
+			detailMap.on(L.Draw.Event.CREATED, (e) => drawnItems.addLayer(e.layer));
 		}
 	}
 }).addTo(map);

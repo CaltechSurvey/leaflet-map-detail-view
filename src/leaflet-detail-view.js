@@ -47,6 +47,26 @@
 			}
 		},
 		{
+			test: function (layer) { return layer instanceof L.Marker; },
+			clone: function (layer) { return L.marker(layer.getLatLng(), L.extend({}, layer.options)); }
+		},
+		{
+			test: function (layer) { return layer instanceof L.Circle; },
+			clone: function (layer) { return L.circle(layer.getLatLng(), L.extend({}, layer.options)); }
+		},
+		{
+			test: function (layer) { return layer instanceof L.CircleMarker; },
+			clone: function (layer) { return L.circleMarker(layer.getLatLng(), L.extend({}, layer.options)); }
+		},
+		{
+			test: function (layer) { return layer instanceof L.Polygon; },
+			clone: function (layer) { return L.polygon(layer.getLatLngs(), L.extend({}, layer.options)); }
+		},
+		{
+			test: function (layer) { return layer instanceof L.Polyline; },
+			clone: function (layer) { return L.polyline(layer.getLatLngs(), L.extend({}, layer.options)); }
+		},
+		{
 			test: function (layer) { return typeof layer.toGeoJSON === 'function'; },
 			clone: function (layer) {
 				return L.geoJSON(layer.toGeoJSON(), {
@@ -197,6 +217,8 @@
 			view: null,
 			// function(parentMap) -> array of layers to add to the detail map
 			createLayers: null,
+			// Mirror layers added to / removed from the parent map while the view is open.
+			syncLayers: true,
 			// function(detailMap, detailView) - attach your own controls/handlers here
 			onDetailMap: null
 		},
@@ -353,7 +375,10 @@
 		/** Re-clone the parent map's layers into the inset. */
 		refreshLayers: function () {
 			var detailMap = this._detailMap;
-			detailMap.eachLayer(function (layer) { detailMap.removeLayer(layer); });
+			Object.keys(this._layerClones || {}).forEach(function (id) {
+				detailMap.removeLayer(this._layerClones[id]);
+			}, this);
+
 			this._addLayers();
 			return this;
 		},
@@ -390,6 +415,8 @@
 
 		remove: function () {
 			this._map.off('move zoom moveend zoomend resize', this._onParentViewChange);
+			this._map.off('layeradd', this._onParentLayerAdd, this);
+			this._map.off('layerremove', this._onParentLayerRemove, this);
 			this.setZoomLock(null);
 			this._detailMap.remove();
 			L.DomUtil.remove(this._panel);
@@ -675,17 +702,55 @@
 		},
 
 		_addLayers: function () {
-			var detailMap = this._detailMap;
-			var layers = this.options.createLayers
-				? this.options.createLayers(this._map)
-				: this._cloneParentLayers();
+			this._layerClones = {};
 
-			layers.forEach(function (layer) {
-				if (layer.options && layer.options.pane && !detailMap.getPane(layer.options.pane)) {
-					layer.options.pane = undefined;
-				}
-				detailMap.addLayer(layer);
-			});
+			if (this.options.createLayers) {
+				this.options.createLayers(this._map).forEach(function (layer) {
+					this._detailMap.addLayer(layer);
+				}, this);
+				return;
+			}
+
+			this._map.eachLayer(this._mirrorLayer, this);
+
+			if (this.options.syncLayers && !this._layerSyncBound) {
+				this._layerSyncBound = true;
+				this._map.on('layeradd', this._onParentLayerAdd, this);
+				this._map.on('layerremove', this._onParentLayerRemove, this);
+			}
+		},
+
+		_onParentLayerAdd: function (e) {
+			this._mirrorLayer(e.layer);
+		},
+
+		_onParentLayerRemove: function (e) {
+			var id = L.Util.stamp(e.layer);
+			var clone = this._layerClones[id];
+
+			if (clone) {
+				this._detailMap.removeLayer(clone);
+				delete this._layerClones[id];
+			}
+		},
+
+		/* Clone one parent layer into the inset, keyed by the parent layer's id. */
+		_mirrorLayer: function (layer) {
+			if (layer._ldvInternal || layer instanceof L.LayerGroup) { return; }
+
+			var id = L.Util.stamp(layer);
+			if (this._layerClones[id]) { return; }
+
+			var clone = cloneLayer(layer);
+			if (!clone) { return; }
+
+			if (clone.options && clone.options.pane) {
+				this._copyPanes();
+				if (!this._detailMap.getPane(clone.options.pane)) { clone.options.pane = undefined; }
+			}
+
+			this._layerClones[id] = clone;
+			this._detailMap.addLayer(clone);
 		},
 
 		/* Non-default panes have to exist before cloned layers can use them. */
@@ -701,20 +766,6 @@
 				pane.style.zIndex = source.style.zIndex ||
 					window.getComputedStyle(source).zIndex;
 			}, this);
-		},
-
-		/* Best-effort clone of the parent's layers so the inset shows the same content. */
-		_cloneParentLayers: function () {
-			var layers = [];
-
-			this._map.eachLayer(function (layer) {
-				if (layer._ldvInternal || layer instanceof L.LayerGroup) { return; }
-
-				var clone = cloneLayer(layer);
-				if (clone) { layers.push(clone); }
-			});
-
-			return layers;
 		},
 
 		_onDetailViewChange: function () {
@@ -919,7 +970,9 @@
 				dashArray: '6 4',
 				fillOpacity: 0.05,
 				interactive: false
-			}).addTo(this._map);
+			});
+			this._preview._ldvInternal = true;
+			this._preview.addTo(this._map);
 
 			L.DomEvent.on(document, POINTER.move, this._onDrawMove, this);
 			L.DomEvent.on(document, POINTER.up, this._onDrawEnd, this);
