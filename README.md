@@ -82,6 +82,15 @@ With `syncLayers` (on by default) layers added to or removed from the parent map
 view is open are mirrored automatically. Clones are snapshots, so if you mutate a layer in
 place (`setLatLngs`, `setStyle`, ...) call `view.refreshLayers()` to rebuild them.
 
+To keep a layer out of the inset, give it `ldvIgnore: true`:
+
+```js
+L.marker(latlng, { ldvIgnore: true }).addTo(map);
+```
+
+The plugin's own box and label are created with `pmIgnore: true`, so Leaflet-Geoman will
+not make them editable and they stay out of `map.pm` based exports.
+
 For app-specific layer classes (Esri Leaflet, vector tiles, ...) either register a cloner:
 
 ```js
@@ -122,17 +131,26 @@ map — `syncLayers` then mirrors them straight back into the inset, and the mar
 closing the panel:
 
 ```js
-const drawnItems = new L.FeatureGroup().addTo(map);
-
+// Leaflet-Geoman
 L.control.detailView({
 	detailViewOptions: {
 		onDetailMap: (detailMap) => {
-			const draw = new L.Control.Draw({ edit: { featureGroup: drawnItems } });
-			detailMap.addControl(draw);
-			detailMap.on(L.Draw.Event.CREATED, (e) => drawnItems.addLayer(e.layer));
+			detailMap.pm.addControls({ drawControls: true, editControls: true });
+			detailMap.on('pm:create', (e) => {
+				detailMap.removeLayer(e.layer);
+				e.layer.addTo(map);
+			});
 		}
 	}
 }).addTo(map);
+```
+
+```js
+// Leaflet.draw
+const drawnItems = new L.FeatureGroup().addTo(map);
+
+detailMap.addControl(new L.Control.Draw({ edit: { featureGroup: drawnItems } }));
+detailMap.on(L.Draw.Event.CREATED, (e) => drawnItems.addLayer(e.layer));
 ```
 
 The same hook is available as the `mapcreate` event on a view and

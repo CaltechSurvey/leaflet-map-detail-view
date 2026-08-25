@@ -24,8 +24,11 @@
 		'mapPane', 'tilePane', 'overlayPane', 'shadowPane', 'markerPane', 'tooltipPane', 'popupPane'
 	];
 
-	/* Map options the inset must share with its parent to render the same tiles. */
-	var INHERITED_MAP_OPTIONS = ['crs', 'minZoom', 'maxZoom', 'maxBounds', 'preferCanvas'];
+	/* Map options the inset must share with its parent to render and zoom the same way. */
+	var INHERITED_MAP_OPTIONS = [
+		'crs', 'minZoom', 'maxZoom', 'maxBounds', 'preferCanvas',
+		'zoomSnap', 'zoomDelta', 'wheelPxPerZoomLevel'
+	];
 
 	/* Ordered list of layer cloners; first match wins. Extend with
 	   L.DetailView.registerLayerCloner for app-specific layer classes. */
@@ -82,7 +85,8 @@
 			// last resort for third-party layers (Esri, vector tiles, ...)
 			test: function (layer) {
 				return typeof layer.constructor === 'function' &&
-					(layer._url || (layer.options && layer.options.url));
+					(layer._url || (layer.options && layer.options.url) ||
+						(layer instanceof L.GridLayer && layer.constructor !== L.GridLayer));
 			},
 			clone: function (layer) {
 				var options = L.extend({}, layer.options);
@@ -289,7 +293,8 @@
 				this._labelMarker = L.marker(this._bounds.getNorthWest(), {
 					icon: icon,
 					interactive: false,
-					keyboard: false
+					keyboard: false,
+					pmIgnore: true
 				});
 				this._labelMarker._ldvInternal = true;
 				this._labelMarker.addTo(this._map);
@@ -432,7 +437,8 @@
 		/* ------------------------------------------------------------------ */
 
 		_createRectangle: function () {
-			var style = L.extend({ className: 'ldv-box' }, this.options.rectangleStyle);
+			// pmIgnore keeps the box out of Leaflet-Geoman's edit/export handling
+			var style = L.extend({ className: 'ldv-box', pmIgnore: true }, this.options.rectangleStyle);
 			this._rect = L.rectangle(this._bounds, style);
 			this._rect._ldvInternal = true;
 			this._rect.addTo(this._map);
@@ -737,6 +743,7 @@
 		/* Clone one parent layer into the inset, keyed by the parent layer's id. */
 		_mirrorLayer: function (layer) {
 			if (layer._ldvInternal || layer instanceof L.LayerGroup) { return; }
+			if (layer.options && layer.options.ldvIgnore) { return; }
 
 			var id = L.Util.stamp(layer);
 			if (this._layerClones[id]) { return; }
@@ -969,7 +976,8 @@
 				weight: 2,
 				dashArray: '6 4',
 				fillOpacity: 0.05,
-				interactive: false
+				interactive: false,
+				pmIgnore: true
 			});
 			this._preview._ldvInternal = true;
 			this._preview.addTo(this._map);
