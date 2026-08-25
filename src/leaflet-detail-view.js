@@ -18,7 +18,13 @@
 		? { down: 'pointerdown', move: 'pointermove', up: 'pointerup pointercancel' }
 		: { down: 'mousedown', move: 'mousemove', up: 'mouseup' };
 
-	var topPanelZIndex = 700;
+	/* One counter per z-index band so bringToFront never escapes its band. */
+	var zCounters = {};
+
+	function nextZIndex(base) {
+		zCounters[base] = (zCounters[base] || base) + 1;
+		return zCounters[base];
+	}
 
 	var DEFAULT_PANES = [
 		'mapPane', 'tilePane', 'overlayPane', 'shadowPane', 'markerPane', 'tooltipPane', 'popupPane'
@@ -213,6 +219,8 @@
 			},
 			zoomControl: false,
 			scaleBar: false,
+			// Panels stack from here; lower it to sit under other map overlays.
+			zIndexBase: 700,
 			// Inset zoom is pinned to parent zoom + this offset when set.
 			lockZoom: null,
 			dimWhenOffscreen: true,
@@ -390,7 +398,7 @@
 
 		/** Raise this panel above any other detail views. */
 		bringToFront: function () {
-			this._panel.style.zIndex = ++topPanelZIndex;
+			this._panel.style.zIndex = nextZIndex(this.options.zIndexBase);
 			return this;
 		},
 
@@ -500,7 +508,7 @@
 			var saved = this.options.panel;
 			panel.style.width = (saved ? saved.width : this.options.width) + 'px';
 			panel.style.height = (saved ? saved.height : this.options.height) + 'px';
-			panel.style.zIndex = ++topPanelZIndex;
+			panel.style.zIndex = nextZIndex(this.options.zIndexBase);
 
 			var header = L.DomUtil.create('div', 'ldv-header', panel);
 			this._labelEl = L.DomUtil.create('span', 'ldv-label', header);
@@ -790,6 +798,7 @@
 			var ns = 'http://www.w3.org/2000/svg';
 			var svg = this._svg = document.createElementNS(ns, 'svg');
 			svg.setAttribute('class', 'ldv-connector');
+			svg.style.zIndex = this.options.zIndexBase - 10;
 
 			var style = this.options.connectorStyle;
 			var count = this.options.connectorType === 'frustum' ? 2 : 1;

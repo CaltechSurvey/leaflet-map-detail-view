@@ -63,6 +63,7 @@ view.toggleZoomControl(false);
 | `rectangleStyle` / `connectorStyle` | black dashed | Styling |
 | `zoomControl` | `false` | Whether the inset map starts with a zoom control |
 | `scaleBar` | `false` | Add a scale bar to the inset map |
+| `zIndexBase` | `700` | Panels stack from here (`base + 1`, `base + 2`, ...) and the connector sits at `base - 10`. Lower it to keep panels under other map overlays |
 | `lockZoom` | `null` | Pin the inset zoom to `parent zoom + n` |
 | `dimWhenOffscreen` | `true` | Fade the panel while its box is out of view |
 | `panel` | `null` | Restore geometry: `{ left, top, width, height }` |
