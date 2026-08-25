@@ -214,8 +214,10 @@
 				weight: 2,
 				dashArray: '6 4'
 			},
+			// Kept enabled but hidden by CSS: layers like GoogleMutant write their
+			// attribution into map.attributionControl and would target the parent otherwise.
 			detailMapOptions: {
-				attributionControl: false
+				attributionControl: true
 			},
 			// Carry the parent layers' attribution strings onto the clones.
 			cloneAttribution: false,

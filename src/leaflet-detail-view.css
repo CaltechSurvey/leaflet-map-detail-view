@@ -137,6 +137,11 @@
 	display: none;
 }
 
+/* Google Mutant renders its own credit block; keep it from wrapping in a small panel. */
+.ldv-map .gm-style-cc {
+	white-space: nowrap;
+}
+
 .ldv-resize {
 	position: absolute;
 	z-index: 1;
