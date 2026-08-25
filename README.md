@@ -69,6 +69,7 @@ view.toggleZoomControl(false);
 | `panel` | `null` | Restore geometry: `{ left, top, width, height }` |
 | `view` | `null` | Restore inset view: `{ center, zoom }` |
 | `detailMapOptions` | `{ attributionControl: false }` | Options for the inset `L.Map`. `crs`, `minZoom`, `maxZoom`, `maxBounds` and `preferCanvas` are inherited from the parent map unless overridden |
+| `cloneAttribution` | `false` | Carry the parent layers' attribution strings onto the clones. The inset has no attribution control by default, so attribution stays on the parent map |
 | `createLayers` | `null` | `function(parentMap)` returning layers for the inset map. Defaults to cloning the parent's layers |
 | `syncLayers` | `true` | Mirror layers added to / removed from the parent map while the view is open |
 | `onDetailMap` | `null` | `function(detailMap, detailView)` called once the inset map exists — attach your own controls and handlers here |

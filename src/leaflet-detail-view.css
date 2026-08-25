@@ -133,6 +133,10 @@
 	min-height: 0;
 }
 
+.ldv-map .leaflet-control-attribution {
+	display: none;
+}
+
 .ldv-resize {
 	position: absolute;
 	z-index: 1;

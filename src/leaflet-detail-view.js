@@ -217,6 +217,8 @@
 			detailMapOptions: {
 				attributionControl: false
 			},
+			// Carry the parent layers' attribution strings onto the clones.
+			cloneAttribution: false,
 			zoomControl: false,
 			scaleBar: false,
 			// Panels stack from here; lower it to sit under other map overlays.
@@ -758,6 +760,10 @@
 
 			var clone = cloneLayer(layer);
 			if (!clone) { return; }
+
+			if (!this.options.cloneAttribution && clone.options) {
+				clone.options.attribution = null;
+			}
 
 			if (clone.options && clone.options.pane) {
 				this._copyPanes();
