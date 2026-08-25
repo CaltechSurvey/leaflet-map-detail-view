@@ -20,6 +20,72 @@
 
 	var topPanelZIndex = 700;
 
+	var DEFAULT_PANES = [
+		'mapPane', 'tilePane', 'overlayPane', 'shadowPane', 'markerPane', 'tooltipPane', 'popupPane'
+	];
+
+	/* Map options the inset must share with its parent to render the same tiles. */
+	var INHERITED_MAP_OPTIONS = ['crs', 'minZoom', 'maxZoom', 'maxBounds', 'preferCanvas'];
+
+	/* Ordered list of layer cloners; first match wins. Extend with
+	   L.DetailView.registerLayerCloner for app-specific layer classes. */
+	var layerCloners = [
+		{
+			test: function (layer) { return L.TileLayer.WMS && layer instanceof L.TileLayer.WMS; },
+			clone: function (layer) {
+				return L.tileLayer.wms(layer._url, L.extend({}, layer.options, layer.wmsParams));
+			}
+		},
+		{
+			test: function (layer) { return layer instanceof L.TileLayer && layer._url; },
+			clone: function (layer) { return L.tileLayer(layer._url, L.extend({}, layer.options)); }
+		},
+		{
+			test: function (layer) { return layer instanceof L.ImageOverlay && layer._url; },
+			clone: function (layer) {
+				return L.imageOverlay(layer._url, layer.getBounds(), L.extend({}, layer.options));
+			}
+		},
+		{
+			test: function (layer) { return typeof layer.toGeoJSON === 'function'; },
+			clone: function (layer) {
+				return L.geoJSON(layer.toGeoJSON(), {
+					pane: layer.options && layer.options.pane,
+					style: function () { return L.extend({}, layer.options); },
+					pointToLayer: function (feature, latlng) {
+						return L.marker(latlng, { icon: (layer.options && layer.options.icon) || new L.Icon.Default() });
+					}
+				});
+			}
+		},
+		{
+			// last resort for third-party layers (Esri, vector tiles, ...)
+			test: function (layer) {
+				return typeof layer.constructor === 'function' &&
+					(layer._url || (layer.options && layer.options.url));
+			},
+			clone: function (layer) {
+				var options = L.extend({}, layer.options);
+				return layer._url && !options.url
+					? new layer.constructor(layer._url, options)
+					: new layer.constructor(options);
+			}
+		}
+	];
+
+	function cloneLayer(layer) {
+		for (var i = 0; i < layerCloners.length; i++) {
+			var cloner = layerCloners[i];
+			if (!cloner.test(layer)) { continue; }
+			try {
+				return cloner.clone(layer);
+			} catch (e) {
+				return null;
+			}
+		}
+		return null;
+	}
+
 	function clamp(value, min, max) {
 		return Math.max(min, Math.min(max, value));
 	}
@@ -130,7 +196,9 @@
 			panel: null,
 			view: null,
 			// function(parentMap) -> array of layers to add to the detail map
-			createLayers: null
+			createLayers: null,
+			// function(detailMap, detailView) - attach your own controls/handlers here
+			onDetailMap: null
 		},
 
 		initialize: function (map, bounds, options) {
@@ -152,6 +220,10 @@
 			if (this.options.lockZoom !== null) { this.setZoomLock(this.options.lockZoom); }
 
 			this._refreshOverlays();
+
+			if (this.options.onDetailMap) { this.options.onDetailMap(this._detailMap, this); }
+			this.fire('mapcreate', { detailMap: this._detailMap });
+			map.fire('detailview:mapcreate', { detailView: this, detailMap: this._detailMap });
 		},
 
 		/* ------------------------------------------------------------------ */
@@ -565,8 +637,17 @@
 		/* ------------------------------------------------------------------ */
 
 		_createDetailMap: function () {
-			var opts = L.extend({}, this.options.detailMapOptions, { zoomControl: false });
+			var inherited = {};
+			INHERITED_MAP_OPTIONS.forEach(function (name) {
+				if (this._map.options[name] !== undefined) {
+					inherited[name] = this._map.options[name];
+				}
+			}, this);
+
+			var opts = L.extend(inherited, this.options.detailMapOptions, { zoomControl: false });
 			var detailMap = this._detailMap = L.map(this._mapEl, opts);
+
+			this._copyPanes();
 
 			this._zoomControl = L.control.zoom();
 			this._zoomControlVisible = false;
@@ -599,7 +680,27 @@
 				? this.options.createLayers(this._map)
 				: this._cloneParentLayers();
 
-			layers.forEach(function (layer) { detailMap.addLayer(layer); });
+			layers.forEach(function (layer) {
+				if (layer.options && layer.options.pane && !detailMap.getPane(layer.options.pane)) {
+					layer.options.pane = undefined;
+				}
+				detailMap.addLayer(layer);
+			});
+		},
+
+		/* Non-default panes have to exist before cloned layers can use them. */
+		_copyPanes: function () {
+			var parentPanes = this._map._panes || {};
+
+			Object.keys(parentPanes).forEach(function (name) {
+				if (DEFAULT_PANES.indexOf(name) !== -1 || this._detailMap.getPane(name)) { return; }
+
+				var source = parentPanes[name];
+				var pane = this._detailMap.createPane(name);
+				pane.className = source.className;
+				pane.style.zIndex = source.style.zIndex ||
+					window.getComputedStyle(source).zIndex;
+			}, this);
 		},
 
 		/* Best-effort clone of the parent's layers so the inset shows the same content. */
@@ -607,18 +708,10 @@
 			var layers = [];
 
 			this._map.eachLayer(function (layer) {
-				if (layer._ldvInternal) { return; }
+				if (layer._ldvInternal || layer instanceof L.LayerGroup) { return; }
 
-				if (layer instanceof L.TileLayer && layer._url) {
-					layers.push(L.tileLayer(layer._url, L.extend({}, layer.options)));
-				} else if (layer.toGeoJSON && !(layer instanceof L.LayerGroup)) {
-					layers.push(L.geoJSON(layer.toGeoJSON(), {
-						style: function () { return L.extend({}, layer.options); },
-						pointToLayer: function (feature, latlng) {
-							return L.marker(latlng, { icon: layer.options.icon || new L.Icon.Default() });
-						}
-					}));
-				}
+				var clone = cloneLayer(layer);
+				if (clone) { layers.push(clone); }
 			});
 
 			return layers;
@@ -890,6 +983,11 @@
 		clipToRect: clipToRect,
 		frustumPairs: frustumPairs,
 		resizeRect: resizeRect
+	};
+
+	/** Teach the inset how to clone an app-specific layer class. */
+	L.DetailView.registerLayerCloner = function (test, clone) {
+		layerCloners.unshift({ test: test, clone: clone });
 	};
 	L.detailView = function (map, bounds, options) {
 		return new DetailView(map, bounds, options);

@@ -67,8 +67,53 @@ view.toggleZoomControl(false);
 | `dimWhenOffscreen` | `true` | Fade the panel while its box is out of view |
 | `panel` | `null` | Restore geometry: `{ left, top, width, height }` |
 | `view` | `null` | Restore inset view: `{ center, zoom }` |
-| `detailMapOptions` | `{ attributionControl: false }` | Options for the inset `L.Map` |
-| `createLayers` | `null` | `function(parentMap)` returning layers for the inset map. Defaults to cloning the parent's tile and vector layers |
+| `detailMapOptions` | `{ attributionControl: false }` | Options for the inset `L.Map`. `crs`, `minZoom`, `maxZoom`, `maxBounds` and `preferCanvas` are inherited from the parent map unless overridden |
+| `createLayers` | `null` | `function(parentMap)` returning layers for the inset map. Defaults to cloning the parent's layers |
+| `onDetailMap` | `null` | `function(detailMap, detailView)` called once the inset map exists — attach your own controls and handlers here |
+
+## Layers in the inset
+
+By default the plugin clones the parent map's layers: tile layers, WMS layers, image
+overlays and anything with `toGeoJSON()`. Non-default panes are recreated on the inset so
+layers keep their stacking order.
+
+For app-specific layer classes (Esri Leaflet, vector tiles, ...) either register a cloner:
+
+```js
+L.DetailView.registerLayerCloner(
+	(layer) => layer instanceof L.esri.TiledMapLayer,
+	(layer) => L.esri.tiledMapLayer({ url: layer.options.url })
+);
+```
+
+or take full control with `createLayers`:
+
+```js
+L.control.detailView({
+	detailViewOptions: {
+		createLayers: () => [L.tileLayer(basemapUrl, { maxZoom: 22 })]
+	}
+}).addTo(map);
+```
+
+## Using your own tools in the inset
+
+The inset is a separate `L.Map`, so controls and handlers bound to the parent map do not
+apply to it. Wire them up per detail view:
+
+```js
+L.control.detailView({
+	detailViewOptions: {
+		onDetailMap: (detailMap) => {
+			L.control.scale().addTo(detailMap);
+			detailMap.on('click', onMapClick);
+		}
+	}
+}).addTo(map);
+```
+
+The same hook is available as the `mapcreate` event on a view and
+`detailview:mapcreate` on the parent map.
 
 ## API
 
@@ -95,8 +140,8 @@ localStorage.setItem('insets', JSON.stringify(detailControl.toJSON()));
 detailControl.fromJSON(JSON.parse(localStorage.getItem('insets')));
 ```
 
-Events on the detail view: `boundschange`, `panelresize`, `titlechange`, `zoomcontroltoggle`, `remove`.
-Events on the map: `detailview:drawstart`, `detailview:drawend`, `detailview:create`.
+Events on the detail view: `boundschange`, `panelresize`, `titlechange`, `zoomcontroltoggle`, `mapcreate`, `remove`.
+Events on the map: `detailview:drawstart`, `detailview:drawend`, `detailview:create`, `detailview:mapcreate`.
 
 ## Development
 
